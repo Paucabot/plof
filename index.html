@@ -249,9 +249,6 @@ kbd{background:#eef2f7;border:1px solid #dce3ec;border-bottom-width:2px;border-r
         <input id="answerInput" inputmode="decimal" autocomplete="off" placeholder="Nombre">
         <button class="primary" id="checkAnswer">Comprova</button>
       </div>
-      <div class="actions">
-        <button class="primary" id="dropBtn">Deixa caure el dard</button>
-      </div>
     </div>
 
     <aside class="side">
@@ -281,7 +278,7 @@ kbd{background:#eef2f7;border:1px solid #dce3ec;border-bottom-width:2px;border-r
 <dialog id="helpDialog">
 <div class="dialog-content">
   <h2>Com s'hi juga?</h2>
-  <p><strong>Col·loca el globus:</strong> arrossega'l sobre la recta fins on creguis que correspon el nombre. Després deixa caure el dard. El globus explota si la posició és prou precisa.</p>
+  <p><strong>Col·loca el globus:</strong> arrossega'l sobre la recta fins on creguis que correspon el nombre i amolla'l. En aquell moment es comprovarà la resposta i caurà el dard. El globus explota si la posició és prou precisa.</p>
   <p><strong>Escriu el nombre:</strong> observa la posició del globus i introdueix el nombre corresponent.</p>
   <p>Pots usar ratolí, pantalla tàctil o les tecles <kbd>←</kbd> i <kbd>→</kbd> per afinar la posició.</p>
   <div style="text-align:right"><button class="primary" id="closeHelp">Entesos</button></div>
@@ -488,7 +485,6 @@ function prepareRound(){
   $('#dart').style.top='';
   $('#balloon').classList.remove('popped');
   $('#burst').classList.remove('show');
-  $('#dropBtn').classList.toggle('hidden',state.mode!=='place');
   $('#answerArea').classList.toggle('hidden',state.mode!=='guess');
   $('#answerInput').value='';
 
@@ -502,7 +498,7 @@ function prepareRound(){
     $('#targetNumber').textContent=nice(state.target);
     $('#modeHint').textContent=state.gameMode
       ? 'Aconsegueix 5 encerts per pujar de nivell. Cada ronda pot tenir extrems, escala i marques diferents.'
-      : 'Arrossega el globus. També pots clicar directament damunt la recta.';
+      : "Arrossega el globus i amolla’l a la posició que vulguis. També pots clicar directament damunt la recta.";
   }else{
     state.answerValue=randomStep(state.min,state.max,state.step);
     setBalloon(state.answerValue);
@@ -560,12 +556,21 @@ $('#balloon').addEventListener('pointerdown',e=>{
   e.preventDefault();
 });
 $('#balloon').addEventListener('pointermove',e=>{if(dragging)setBalloon(pointerToValue(e.clientX));});
-$('#balloon').addEventListener('pointerup',()=>dragging=false);
-$('#playfield').addEventListener('pointerdown',e=>{
+$('#balloon').addEventListener('pointerup',e=>{
+  if(!dragging)return;
+  dragging=false;
+  setBalloon(pointerToValue(e.clientX));
+  dropDart();
+});
+$('#balloon').addEventListener('pointercancel',()=>dragging=false);
+$('#playfield').addEventListener('pointerup',e=>{
   if(state.locked||state.mode!=='place'||e.target.closest('.balloon'))return;
   const y=e.clientY-$('#playfield').getBoundingClientRect().top;
   const lineY=$('#playfield').clientHeight*.62;
-  if(Math.abs(y-lineY)<80)setBalloon(pointerToValue(e.clientX));
+  if(Math.abs(y-lineY)<80){
+    setBalloon(pointerToValue(e.clientX));
+    dropDart();
+  }
 });
 document.addEventListener('keydown',e=>{
   if(!$('#game').classList.contains('active')||state.locked||state.mode!=='place')return;
@@ -609,13 +614,11 @@ function dropDart(){
     }else{
       $('#feedback').textContent=`Gairebé! Era ${nice(state.target)}.`;
       $('#feedback').style.color='var(--bad)';
-      beep(180,.12);
+      errorBeep();
     }
     finishRound(hit);
   },1150);
 }
-$('#dropBtn').onclick=dropDart;
-
 function checkAnswer(){
   if(state.locked||state.mode!=='guess')return;
   const v=parseLocale($('#answerInput').value);
@@ -633,7 +636,7 @@ function checkAnswer(){
   } else {
     $('#feedback').textContent=`La resposta era ${nice(state.answerValue)}.`;
     $('#feedback').style.color='var(--bad)';
-    beep(180,.12);
+    errorBeep();
   }
   finishRound(hit);
 }
@@ -680,17 +683,21 @@ $('#restartBtn').onclick=()=>{
   }
 };
 
-function beep(freq,duration){
+function beep(freq,duration,volume=.06){
   if(!state.sound)return;
   try{
     const AC=window.AudioContext||window.webkitAudioContext;
     const ctx=new AC(),osc=ctx.createOscillator(),gain=ctx.createGain();
+    osc.type='sine';
     osc.frequency.value=freq;
-    gain.gain.setValueAtTime(.06,ctx.currentTime);
+    gain.gain.setValueAtTime(volume,ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+duration);
     osc.connect(gain);gain.connect(ctx.destination);
     osc.start();osc.stop(ctx.currentTime+duration);
   }catch(e){}
+}
+function errorBeep(){
+  beep(240,.09,.025);
 }
 $('#soundBtn').onclick=()=>{
   state.sound=!state.sound;
