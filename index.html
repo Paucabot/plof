@@ -302,6 +302,9 @@ const state = {
   sound:true, gameMode:false, level:1, roundInLevel:0
 };
 
+const AUTO_NEXT_DELAY = 2000; // mil·lisegons (2 segons)
+let autoNextTimer = null;
+
 const classicRanges = [10,20,100,1000];
 
 function nice(n){
@@ -477,6 +480,8 @@ function showScreen(id){
 $('#homeBtn').onclick=()=>showScreen('home');
 
 function prepareRound(){
+  clearTimeout(autoNextTimer);
+  autoNextTimer=null;
   state.locked=false;
   $('#feedback').textContent='';
   $('#feedback').style.color='';
@@ -652,11 +657,17 @@ function finishRound(hit){
     updateLevelDisplay();
   }
   $('#nextBtn').classList.remove('hidden');
+  autoNextTimer=setTimeout(goToNextRound,AUTO_NEXT_DELAY);
 }
-$('#nextBtn').onclick=()=>{
+
+function goToNextRound(){
+  clearTimeout(autoNextTimer);
+  autoNextTimer=null;
   if(state.gameMode) prepareGameRound();
   else prepareRound();
-};
+}
+
+$('#nextBtn').onclick=goToNextRound;
 function updateStats(){
   $('#score').textContent=state.score;
   $('#attempts').textContent=state.attempts;
