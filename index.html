@@ -251,7 +251,6 @@ kbd{background:#eef2f7;border:1px solid #dce3ec;border-bottom-width:2px;border-r
       </div>
       <div class="actions">
         <button class="primary" id="dropBtn">Deixa caure el dard</button>
-        <button class="ghost hidden" id="nextBtn">Següent</button>
       </div>
     </div>
 
@@ -302,7 +301,7 @@ const state = {
   sound:true, gameMode:false, level:1, roundInLevel:0
 };
 
-const AUTO_NEXT_DELAY = 2000; // mil·lisegons (2 segons)
+const AUTO_NEXT_DELAY = 1500; // mil·lisegons (1,5 segons)
 let autoNextTimer = null;
 
 const classicRanges = [10,20,100,1000];
@@ -485,7 +484,6 @@ function prepareRound(){
   state.locked=false;
   $('#feedback').textContent='';
   $('#feedback').style.color='';
-  $('#nextBtn').classList.add('hidden');
   $('#dart').classList.remove('falling','visible');
   $('#dart').style.top='';
   $('#balloon').classList.remove('popped');
@@ -656,7 +654,6 @@ function finishRound(hit){
     }
     updateLevelDisplay();
   }
-  $('#nextBtn').classList.remove('hidden');
   autoNextTimer=setTimeout(goToNextRound,AUTO_NEXT_DELAY);
 }
 
@@ -667,7 +664,6 @@ function goToNextRound(){
   else prepareRound();
 }
 
-$('#nextBtn').onclick=goToNextRound;
 function updateStats(){
   $('#score').textContent=state.score;
   $('#attempts').textContent=state.attempts;
