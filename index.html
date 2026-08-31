@@ -551,7 +551,7 @@ function pointerToValue(clientX){
 let dragging=false;
 $('#balloon').addEventListener('pointerdown',e=>{
   if(state.locked||state.mode!=='place')return;
-  ensureAudio();
+  unlockAudio();
   dragging=true;
   $('#balloon').setPointerCapture(e.pointerId);
   e.preventDefault();
@@ -566,7 +566,7 @@ $('#balloon').addEventListener('pointerup',e=>{
 $('#balloon').addEventListener('pointercancel',()=>dragging=false);
 $('#playfield').addEventListener('pointerup',e=>{
   if(state.locked||state.mode!=='place'||e.target.closest('.balloon'))return;
-  ensureAudio();
+  unlockAudio();
   const y=e.clientY-$('#playfield').getBoundingClientRect().top;
   const lineY=$('#playfield').clientHeight*.62;
   if(Math.abs(y-lineY)<80){
@@ -594,8 +594,22 @@ function showBurstAtTarget(){
 }
 function dropDart(){
   if(state.locked||state.mode!=='place')return;
+  unlockAudio();
   state.locked=true;
   state.attempts++;
+
+  // Calculam el resultat dins el mateix gest de l'usuari i programam el so
+  // perquè soni quan el dard arriba. Així Safari/iOS no el pot bloquejar
+  // per considerar-lo un so iniciat fora d'una interacció de l'usuari.
+  const error=Math.abs(state.balloonValue-state.target);
+  const hit=error<=tolerance();
+  if(hit){
+    beep(660,.08,.06,'sine',1.15);
+    beep(880,.09,.06,'sine',1.24);
+  }else{
+    errorBeep(1.15);
+  }
+
   placeDartAtTarget();
   const dart=$('#dart');
   dart.classList.add('visible');
@@ -603,27 +617,22 @@ function dropDart(){
     requestAnimationFrame(()=>dart.classList.add('falling'));
   });
   setTimeout(()=>{
-    const error=Math.abs(state.balloonValue-state.target);
-    const hit=error<=tolerance();
     if(hit){
       state.score++;
       $('#feedback').textContent='Molt bé! 🎉';
       $('#feedback').style.color='var(--ok)';
       $('#balloon').classList.add('popped');
       showBurstAtTarget();
-      beep(660,.08);
-      setTimeout(()=>beep(880,.09),90);
     }else{
       $('#feedback').textContent=`Gairebé! Era ${nice(state.target)}.`;
       $('#feedback').style.color='var(--bad)';
-      errorBeep();
     }
     finishRound(hit);
   },1150);
 }
 function checkAnswer(){
   if(state.locked||state.mode!=='guess')return;
-  ensureAudio();
+  unlockAudio();
   const v=parseLocale($('#answerInput').value);
   if(!Number.isFinite(v)){ $('#feedback').textContent='Escriu un nombre.'; return; }
   state.locked=true;
@@ -693,33 +702,52 @@ function ensureAudio(){
     const AC=window.AudioContext||window.webkitAudioContext;
     if(!AC)return null;
     if(!audioCtx) audioCtx=new AC();
-    if(audioCtx.state==='suspended') audioCtx.resume();
+    if(audioCtx.state==='suspended') audioCtx.resume().catch(()=>{});
     return audioCtx;
   }catch(e){ return null; }
+}
+function unlockAudio(){
+  const ctx=ensureAudio();
+  if(!ctx)return;
+  try{
+    // Reprodueix un buffer mut durant el gest de l'usuari. Això desbloqueja
+    // l'àudio en Safari/iOS perquè els sons retardats també es puguin sentir.
+    const buffer=ctx.createBuffer(1,1,22050);
+    const source=ctx.createBufferSource();
+    source.buffer=buffer;
+    source.connect(ctx.destination);
+    source.start(0);
+  }catch(e){}
 }
 function beep(freq,duration,volume=.06,type='sine',delay=0){
   if(!state.sound)return;
   const ctx=ensureAudio();
   if(!ctx)return;
-  try{
-    const osc=ctx.createOscillator(),gain=ctx.createGain();
-    const start=ctx.currentTime+delay;
-    osc.type=type;
-    osc.frequency.setValueAtTime(freq,start);
-    gain.gain.setValueAtTime(.0001,start);
-    gain.gain.exponentialRampToValueAtTime(volume,start+.012);
-    gain.gain.exponentialRampToValueAtTime(.0001,start+duration);
-    osc.connect(gain);gain.connect(ctx.destination);
-    osc.start(start);osc.stop(start+duration+.02);
-  }catch(e){}
+  const play=()=>{
+    try{
+      const osc=ctx.createOscillator(),gain=ctx.createGain();
+      const start=ctx.currentTime+delay;
+      osc.type=type;
+      osc.frequency.setValueAtTime(freq,start);
+      gain.gain.setValueAtTime(.0001,start);
+      gain.gain.exponentialRampToValueAtTime(volume,start+.012);
+      gain.gain.exponentialRampToValueAtTime(.0001,start+duration);
+      osc.connect(gain);gain.connect(ctx.destination);
+      osc.start(start);osc.stop(start+duration+.02);
+    }catch(e){}
+  };
+  if(ctx.state==='suspended') ctx.resume().then(play).catch(()=>{});
+  else play();
 }
-function errorBeep(){
-  // Toc curt i clar, però discret. El context ja s'ha activat amb el gest de l'usuari.
-  beep(260,.10,.045,'sine');
-  beep(195,.12,.035,'sine',.07);
+function errorBeep(delay=0){
+  // Freqüències una mica més altes perquè siguin audibles també en mòbils/tablets,
+  // però amb un volum i una durada baixos perquè no resulti estrident.
+  beep(440,.11,.075,'triangle',delay);
+  beep(330,.13,.065,'triangle',delay+.085);
 }
 $('#soundBtn').onclick=()=>{
   state.sound=!state.sound;
+  if(state.sound) unlockAudio();
   $('#soundBtn').textContent=state.sound?'🔊':'🔇';
 };
 $('#fullscreenBtn').onclick=async()=>{
