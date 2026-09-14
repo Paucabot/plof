@@ -250,7 +250,6 @@ kbd{background:#eef2f7;border:1px solid #dce3ec;border-bottom-width:2px;border-r
         <button class="primary" id="checkAnswer">Comprova</button>
       </div>
       <div class="actions">
-        <button class="primary" id="dropBtn">Deixa caure el dard</button>
         <button class="ghost hidden" id="nextBtn">Següent</button>
       </div>
     </div>
@@ -485,7 +484,7 @@ function prepareRound(){
   $('#dart').style.top='';
   $('#balloon').classList.remove('popped');
   $('#burst').classList.remove('show');
-  $('#dropBtn').classList.toggle('hidden',state.mode!=='place');
+  // El dard cau automàticament quan es deixa anar el globus.
   $('#answerArea').classList.toggle('hidden',state.mode!=='guess');
   $('#answerInput').value='';
 
@@ -557,7 +556,12 @@ $('#balloon').addEventListener('pointerdown',e=>{
   e.preventDefault();
 });
 $('#balloon').addEventListener('pointermove',e=>{if(dragging)setBalloon(pointerToValue(e.clientX));});
-$('#balloon').addEventListener('pointerup',()=>dragging=false);
+$('#balloon').addEventListener('pointerup',()=>{
+  if(dragging){
+    dragging=false;
+    if(!state.locked && state.mode==='place') dropDart();
+  }
+});
 $('#playfield').addEventListener('pointerdown',e=>{
   if(state.locked||state.mode!=='place'||e.target.closest('.balloon'))return;
   const y=e.clientY-$('#playfield').getBoundingClientRect().top;
@@ -573,10 +577,11 @@ document.addEventListener('keydown',e=>{
 });
 
 function tolerance(){
-  // La tolerància intenta coincidir amb el que veu l'alumne:
-  // si el dard toca el globus, s'ha de considerar encert.
-  const visual = (state.max-state.min) * 0.018;
-  return Math.max(visual, state.step * 0.4);
+  // La zona d'encert es calcula a partir de la mida real del globus.
+  const playWidth = $('#playfield').clientWidth || 600;
+  const balloonWidth = 58;
+  const visual = (state.max-state.min) * (balloonWidth / playWidth) * 0.55;
+  return Math.max(visual, state.step * 0.35);
 }
 function showBurstAtTarget(){
   const b=$('#burst');
@@ -617,7 +622,7 @@ function dropDart(){
     finishRound(hit);
   },1150);
 }
-$('#dropBtn').onclick=dropDart;
+// El llançament s'activa automàticament en deixar anar el globus.
 
 function checkAnswer(){
   if(state.locked||state.mode!=='guess')return;
